@@ -681,6 +681,20 @@ if ((Test-Path -LiteralPath $overlaySource -PathType Container) -and
             $syncedFiles++
         }
     }
+    $mlOverlaySource = Join-Path $PSScriptRoot 'linux-port\overlays\playerbot-ml\src\game\src'
+    if (Test-Path -LiteralPath $mlOverlaySource -PathType Container) {
+        foreach ($overlayFile in Get-ChildItem -LiteralPath $mlOverlaySource -File) {
+            $stagedFile = Join-Path $overlayStaged $overlayFile.Name
+            $stagedHash = $null
+            if (Test-Path -LiteralPath $stagedFile -PathType Leaf) {
+                $stagedHash = (Get-FileHash -LiteralPath $stagedFile -Algorithm SHA256).Hash
+            }
+            if ($stagedHash -ne (Get-FileHash -LiteralPath $overlayFile.FullName -Algorithm SHA256).Hash) {
+                Copy-Item -LiteralPath $overlayFile.FullName -Destination $stagedFile -Force
+                $syncedFiles++
+            }
+        }
+    }
     # prepare-context.sh patches the engine Makefile to compile every
     # playerbot_*.cpp it finds, and it never runs on a player's machine. Repair
     # that one line here rather than shipping the whole Makefile over theirs.
@@ -692,6 +706,31 @@ if ((Test-Path -LiteralPath $overlaySource -PathType Container) -and
                 'CPPFILE += $(wildcard playerbot_*.cpp)'
             [IO.File]::WriteAllText($gameMakefile, $makefileText)
             $syncedFiles++
+        }
+        $makefileText = Get-Content -LiteralPath $gameMakefile -Raw
+        if ($makefileText -match '(?m)^CPPFILE \+= \$\(wildcard playerbot_\*\.cpp\)\s*$' -and
+            $makefileText -notmatch '(?m)^CPPFILE \+= \$\(wildcard pbml_\*\.cpp\)\s*$') {
+            $makefileText = $makefileText -replace '(?m)^CPPFILE \+= \$\(wildcard playerbot_\*\.cpp\)\s*$',
+                "CPPFILE += `$(wildcard playerbot_*.cpp)`nCPPFILE += `$(wildcard pbml_*.cpp)"
+            [IO.File]::WriteAllText($gameMakefile, $makefileText)
+            $syncedFiles++
+        }
+    }
+    $mlPatchDir = Join-Path $PSScriptRoot 'linux-port\overlays\playerbot-ml\patches'
+    $serverRoot = Join-Path $PSScriptRoot 'linux-port\docker\game\src\server'
+    if ((Test-Path -LiteralPath $mlPatchDir -PathType Container) -and
+        (Test-Path -LiteralPath $serverRoot -PathType Container)) {
+        foreach ($mlPatch in Get-ChildItem -LiteralPath $mlPatchDir -Filter '*.patch' | Sort-Object Name) {
+            Push-Location $serverRoot
+            try {
+                git apply --check --whitespace=nowarn $mlPatch.FullName 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) { continue }
+                git apply --whitespace=nowarn $mlPatch.FullName 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) { $syncedFiles++ }
+            }
+            finally {
+                Pop-Location
+            }
         }
     }
     # Everything else prepare-context.sh stages, for the same reason as the

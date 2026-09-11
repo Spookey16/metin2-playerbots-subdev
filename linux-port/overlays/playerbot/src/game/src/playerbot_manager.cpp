@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "playerbot_manager.h"
 #include "playerbot_empire_rules.h"
+#include "pbml_manager.h"
 #include "playerbot_world_rules.h"
 
 #include "char.h"
@@ -1528,6 +1529,11 @@ void CPlayerBotManager::Update()
 
 		LPCHARACTER ch = d->GetCharacter();
 		if (!ch)
+			continue;
+
+		// Shinsoo is owned by overlays/playerbot-ml when PLAYERBOT_ML=1.
+		// Chunjo and Jinno keep this tick, including the 1.33 kingdom AI.
+		if (CPlayerBotMlManager::instance().TakeOver(ch, dwNow))
 			continue;
 
 		TPlayerBotAIState& state = s_mapPlayerBotAIStates[it->first];

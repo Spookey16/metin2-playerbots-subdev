@@ -1,0 +1,6 @@
+diff --git a/game/src/Makefile b/game/src/Makefile
+--- a/game/src/Makefile
++++ b/game/src/Makefile
+@@ -156,1 +156,2 @@
+ CPPFILE += $(wildcard playerbot_*.cpp)
++CPPFILE += $(wildcard pbml_*.cpp)

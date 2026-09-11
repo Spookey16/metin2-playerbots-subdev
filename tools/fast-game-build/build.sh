@@ -55,6 +55,10 @@ fi
 
 if [ "$#" -eq 0 ]; then
     set -- playerbot_manager.cpp
+    for f in "$SOURCE_ROOT"/pbml_*.cpp; do
+        [ -e "$f" ] || continue
+        set -- "$@" "$(basename "$f")"
+    done
 fi
 
 for relative in "$@"; do

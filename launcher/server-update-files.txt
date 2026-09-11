@@ -63,6 +63,9 @@ linux-port/overlays/playerbot/data/bot_names_iwakura.txt
 # 1.22.4 and again in 1.23.2. The packager refuses a package in which the two
 # sides disagree.
 linux-port/overlays/playerbot/src/game/src/playerbot_*
+linux-port/overlays/playerbot-ml/src/game/src/pbml_*
+linux-port/overlays/playerbot-ml/patches/*.patch
+linux-port/overlays/playerbot-ml/tools/train_policy.py
 linux-port/docker/game/src/server/game/src/playerbot_*
 # Engine files carrying an overlay patch added after the full package was
 # built. prepare-context.sh never runs on a player's machine, so a patch that

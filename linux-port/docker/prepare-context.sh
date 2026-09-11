@@ -34,6 +34,8 @@
 #
 #      ../overlays/playerbot/           the Playerbot core integration, manager
 #                                      sources and economy adjustment
+#      ../overlays/playerbot-ml/        Shinsoo ML side-module (pbml_*.cpp) and
+#                                      its engine hook patch
 #      ../../files/fixes/apply.sh      defects in the shipped files, for every
 #                                      server, no switch
 #      ../../files/custom/apply.sh     the Custom Experience, when
@@ -71,6 +73,9 @@ PLAYERBOT_SEED="$PLAYERBOT_OVERLAY/sql/playerbots_seed.sql"
 PLAYERBOT_MIGRATOR="$HERE/mariadb/playerbot/apply.sh"
 PLAYERBOT_M3_DROPS="$PLAYERBOT_OVERLAY/serverfiles/mob_drop_item.m3.append.txt"
 PLAYERBOT_MOONLIGHT_CHEST="$PLAYERBOT_OVERLAY/serverfiles/special_item_group.moonlight.txt"
+PLAYERBOT_ML_OVERLAY="$REPO_ROOT/linux-port/overlays/playerbot-ml"
+PLAYERBOT_ML_SRC="$PLAYERBOT_ML_OVERLAY/src/game/src"
+PLAYERBOT_ML_PATCH_DIR="$PLAYERBOT_ML_OVERLAY/patches"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -106,6 +111,11 @@ for f in "$PLAYERBOT_SRC"/playerbot_*.h "$PLAYERBOT_SRC"/playerbot_*.cpp; do
   [ -e "$f" ] || continue
   PLAYERBOT_SOURCES="$PLAYERBOT_SOURCES $f"
 done
+PLAYERBOT_ML_SOURCES=""
+for f in "$PLAYERBOT_ML_SRC"/pbml_*.h "$PLAYERBOT_ML_SRC"/pbml_*.cpp; do
+  [ -e "$f" ] || continue
+  PLAYERBOT_ML_SOURCES="$PLAYERBOT_ML_SOURCES $f"
+done
 
 # Applied in file-name order, which is what the numbering is for: 0001 lays down
 # the integration every later patch is written against.
@@ -114,15 +124,23 @@ for f in "$PLAYERBOT_PATCH_DIR"/[0-9][0-9][0-9][0-9]-*.patch; do
   [ -e "$f" ] || continue
   PLAYERBOT_PATCHES="$PLAYERBOT_PATCHES $f"
 done
+# ML hooks after the playerbot series (0012 kingdoms, 0013 autospawn ceiling).
+for f in "$PLAYERBOT_ML_PATCH_DIR"/[0-9][0-9][0-9][0-9]-*.patch; do
+  [ -e "$f" ] || continue
+  PLAYERBOT_PATCHES="$PLAYERBOT_PATCHES $f"
+done
 [ -n "$PLAYERBOT_PATCHES" ] || die "no engine patches found in $PLAYERBOT_PATCH_DIR"
 [ -s "$PLAYERBOT_CORE_PATCH" ] || die "the Playerbot core integration patch is missing: $PLAYERBOT_CORE_PATCH"
 [ -n "$PLAYERBOT_SOURCES" ] || die "no Playerbot overlay sources found in $PLAYERBOT_SRC"
+[ -n "$PLAYERBOT_ML_SOURCES" ] || die "no Playerbot-ML overlay sources found in $PLAYERBOT_ML_SRC"
 # playerbot_manager.cpp is the one file the integration patch cannot work
 # without, so its absence is a different failure from "the directory is empty".
 [ -s "$PLAYERBOT_SRC/playerbot_manager.cpp" ] || die "Playerbot overlay input is missing or empty: $PLAYERBOT_SRC/playerbot_manager.cpp"
+[ -s "$PLAYERBOT_ML_SRC/pbml_manager.cpp" ] || die "Playerbot-ML overlay input is missing or empty: $PLAYERBOT_ML_SRC/pbml_manager.cpp"
 
 for p in \
   $PLAYERBOT_SOURCES \
+  $PLAYERBOT_ML_SOURCES \
   $PLAYERBOT_PATCHES \
   "$PLAYERBOT_SEED_GENERATOR" \
   "$PLAYERBOT_SEED" \
@@ -244,6 +262,10 @@ for f in $PLAYERBOT_SOURCES; do
   cp -a "$f" "$GAME_CTX/server/game/src/$(basename "$f")"
   chmod 0644 "$GAME_CTX/server/game/src/$(basename "$f")"
 done
+for f in $PLAYERBOT_ML_SOURCES; do
+  cp -a "$f" "$GAME_CTX/server/game/src/$(basename "$f")"
+  chmod 0644 "$GAME_CTX/server/game/src/$(basename "$f")"
+done
 
 # A source removed from the overlay has to disappear from the build context too.
 # The Makefile now compiles every playerbot_*.cpp it finds there, so a file left
@@ -256,18 +278,33 @@ for f in "$GAME_CTX/server/game/src"/playerbot_*.h "$GAME_CTX/server/game/src"/p
     rm -f "$f"
   }
 done
+for f in "$GAME_CTX/server/game/src"/pbml_*.h "$GAME_CTX/server/game/src"/pbml_*.cpp; do
+  [ -e "$f" ] || continue
+  [ -e "$PLAYERBOT_ML_SRC/$(basename "$f")" ] || {
+    info "removing stale ML overlay source $(basename "$f")"
+    rm -f "$f"
+  }
+done
 
 grep -q 'CPPFILE += $(wildcard playerbot_\*.cpp)' "$GAME_CTX/server/game/src/Makefile" \
   || die "Playerbot overlay validation failed: game Makefile does not pick up the overlay sources"
+grep -q 'CPPFILE += $(wildcard pbml_\*.cpp)' "$GAME_CTX/server/game/src/Makefile" \
+  || die "Playerbot-ML overlay validation failed: game Makefile does not pick up pbml_*.cpp"
 grep -q 'HEADER_GD_BOT_PLAYER_LOAD' "$GAME_CTX/server/common/tables.h" \
   || die "Playerbot overlay validation failed: DB protocol header is missing"
 grep -q 'CPlayerBotManager::instance().OnPlayerLoaded' "$GAME_CTX/server/game/src/input_db.cpp" \
   || die "Playerbot overlay validation failed: player-load hook is missing"
+grep -q 'CPlayerBotMlManager::instance().Bootstrap' "$GAME_CTX/server/game/src/input_db.cpp" \
+  || die "Playerbot-ML overlay validation failed: bootstrap hook is missing"
 grep -q 'iGold \*= 5;' "$GAME_CTX/server/game/src/char_battle.cpp" \
   || die "Playerbot overlay validation failed: economy adjustment is missing"
 for f in $PLAYERBOT_SOURCES; do
   cmp -s "$f" "$GAME_CTX/server/game/src/$(basename "$f")" \
     || die "Playerbot overlay validation failed: $(basename "$f") copy differs"
+done
+for f in $PLAYERBOT_ML_SOURCES; do
+  cmp -s "$f" "$GAME_CTX/server/game/src/$(basename "$f")" \
+    || die "Playerbot-ML overlay validation failed: $(basename "$f") copy differs"
 done
 
 {
@@ -281,6 +318,9 @@ done
   # itself: the context looks fine and the image is simply not rebuilt.
   for f in $PLAYERBOT_SOURCES; do
     printf 'src_%s=%s\n' "$(basename "$f")" "$(git hash-object "$f")"
+  done
+  for f in $PLAYERBOT_ML_SOURCES; do
+    printf 'mlsrc_%s=%s\n' "$(basename "$f")" "$(git hash-object "$f")"
   done
   printf 'seed_generator=%s\n' "$(git hash-object "$PLAYERBOT_SEED_GENERATOR")"
   printf 'seed_sql=%s\n' "$(git hash-object "$PLAYERBOT_SEED")"

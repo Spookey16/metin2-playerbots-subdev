@@ -197,6 +197,13 @@ services:
       # Single authoritative startup switch (implemented by the bot manager).
       # Keep the existing 350-bot world by default; lower this in .env for tests.
       PLAYERBOT_AUTOSPAWN_COUNT: "${PLAYERBOT_AUTOSPAWN_COUNT:-350}"
+      PLAYERBOT_ML: "${PLAYERBOT_ML:-1}"
+      PLAYERBOT_ML_AUTOSPAWN_COUNT: "${PLAYERBOT_ML_AUTOSPAWN_COUNT:-24}"
+      PLAYERBOT_ML_POLICY: "${PLAYERBOT_ML_POLICY:-auto}"
+      PLAYERBOT_ML_WEIGHTS: "${PLAYERBOT_ML_WEIGHTS:-pbml_policy.txt}"
+      PLAYERBOT_ML_REPLAY: "${PLAYERBOT_ML_REPLAY:-0}"
+      PLAYERBOT_ML_REPLAY_PATH: "${PLAYERBOT_ML_REPLAY_PATH:-pbml_replay.bin}"
+      PLAYERBOT_ML_EPSILON_PERMILLE: "${PLAYERBOT_ML_EPSILON_PERMILLE:-0}"
 
       # The Moonlight Treasure Chest event: chances in a thousand that a kill,
       # and that a Metin stone, drops a chest. Zero switches the event off.

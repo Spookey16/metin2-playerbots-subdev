@@ -1,0 +1,21 @@
+diff --git a/game/src/input_db.cpp b/game/src/input_db.cpp
+--- a/game/src/input_db.cpp
++++ b/game/src/input_db.cpp
+@@ -31,4 +31,5 @@
+ #include "playerbot_manager.h"
+ #include "playerbot_empire_rules.h"
++#include "pbml_manager.h"
+ 
+ #include <cstdlib>
+@@ -1406,3 +1407,5 @@
+ 		CPlayerBotManager::instance().CountRegisteredPerEmpire(
+ 				registered, playerbot_empire_rules::EMPIRE_COUNT);
++		if (CPlayerBotMlManager::instance().Enabled())
++			registered[playerbot_empire_rules::EMPIRE_SHINSOO] = 0;
+ 		playerbot_empire_rules::SplitPopulation(autoSpawnCount, registered, want);
+@@ -1422,4 +1425,5 @@
+ 			sys_log(0, "PLAYERBOT: autospawn empire=%d village=%ld requested=%d registered=%d started=%u",
+ 					empire, lVillage, want[empire], registered[empire],
+ 					(unsigned int)spawned);
+ 		}
++		CPlayerBotMlManager::instance().Bootstrap();
